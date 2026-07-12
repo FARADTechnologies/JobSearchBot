@@ -7,7 +7,7 @@ from .classifier import classify_job, positive_signals
 from .config import load_config
 from .scraper import build_session, enrich_job, fetch_all_jobs
 from .state import SeenStore
-from .telegram import format_message, send_job
+from .telegram import build_batch_messages, send_matches
 
 
 def main() -> None:
@@ -27,9 +27,7 @@ def main() -> None:
     new_jobs = [job for job in jobs if not seen.has(job.id)]
 
     # Stage 1 - cheap prefilter on title + company only (no network per job).
-    # A job is a candidate if its title/company carries any tech OR education
-    # signal; the expensive detail fetch + full classification runs only on these.
-    candidates: list = []
+    candidates = []
     for job in new_jobs:
         if positive_signals(f"{job.title} {job.company}"):
             candidates.append(job)
@@ -44,7 +42,7 @@ def main() -> None:
     )
 
     processed = 0
-    notified = 0
+    matches: list = []  # (job, classification) to be sent in one batch.
 
     # Stage 2 - enrich + classify each candidate.
     for job in candidates[:limit]:
@@ -58,31 +56,39 @@ def main() -> None:
             continue
 
         classification = classify_job(detailed_job, config)
-
-        should_send = classification.label == "HIGH_MATCH" or (
-            classification.label == "MAYBE_MATCH" and config.send_maybe_matches
-        )
-
         print(
             f"    {classification.label} {classification.confidence}% "
             f"({classification.source}) - {classification.reason}"
         )
 
-        if args.dry_run:
-            if should_send:
-                print(format_message(detailed_job, classification))
-            continue
+        should_send = classification.label == "HIGH_MATCH" or (
+            classification.label == "MAYBE_MATCH" and config.send_maybe_matches
+        )
 
         if should_send:
-            send_job(config, detailed_job, classification)
-            notified += 1
+            matches.append((detailed_job, classification))
+        elif not args.dry_run:
+            # Decided NO_MATCH -> remember it so it is not reprocessed.
+            seen.add(job.id)
 
-        seen.add(job.id)
+    # Send every match in a single (batched) Telegram message.
+    if args.dry_run:
+        print("\n----- Telegram preview -----")
+        for message in build_batch_messages(matches) if matches else ["(no matches)"]:
+            print(message)
+            print("-----")
+    elif matches:
+        try:
+            send_matches(config, matches)
+            for job, _ in matches:
+                seen.add(job.id)  # only mark sent matches seen after a successful send
+        except Exception as exc:  # noqa: BLE001
+            print(f"Telegram send failed, matches will retry next run: {exc}", file=sys.stderr)
 
     if not args.dry_run:
         seen.save()
 
-    print(f"Processed {processed}. Sent {notified} Telegram notifications.")
+    print(f"Processed {processed}. Matched {len(matches)} jobs.")
 
     if not config.telegram_enabled and not args.dry_run:
         print(

@@ -116,6 +116,7 @@ def enrich_job(job: Job, session: requests.Session | None = None) -> Job:
         company=company,
         url=job.url,
         date_text=job.date_text,
+        deadline=clean_text(str(data.get("deadline_at") or "")),
         summary=category,
         description=full_description[:12000],
     )

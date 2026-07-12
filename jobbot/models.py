@@ -10,6 +10,7 @@ class Job:
     company: str
     url: str
     date_text: str = ""
+    deadline: str = ""
     summary: str = ""
     description: str = ""
 
