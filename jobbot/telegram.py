@@ -23,19 +23,26 @@ def send_matches(config: Config, matches: list[tuple[Job, Classification]]) -> N
 
 
 def build_batch_messages(matches: list[tuple[Job, Classification]]) -> list[str]:
-    header = f"🔔 <b>{len(matches)} yeni uyğun elan tapıldı</b>"
     blocks = [format_job_block(index, job, cls) for index, (job, cls) in enumerate(matches, 1)]
 
-    messages: list[str] = []
-    current = header
+    # Pack blocks into as few chunks as possible (Telegram message size limit).
+    chunks: list[list[str]] = [[]]
+    length = 0
     for block in blocks:
-        candidate = f"{current}\n\n{block}"
-        if len(candidate) > MAX_MESSAGE_CHARS and current != header:
-            messages.append(current)
-            current = f"{header}\n\n{block}"
-        else:
-            current = candidate
-    messages.append(current)
+        extra = len(block) + 2
+        if chunks[-1] and length + extra > MAX_MESSAGE_CHARS:
+            chunks.append([])
+            length = 0
+        chunks[-1].append(block)
+        length += extra
+
+    total = len(chunks)
+    messages: list[str] = []
+    for part, chunk in enumerate(chunks, 1):
+        header = f"🔔 <b>{len(matches)} yeni uyğun elan tapıldı</b>"
+        if total > 1:
+            header += f" (bölüm {part}/{total})"
+        messages.append("\n\n".join([header, *chunk]))
     return messages
 
 

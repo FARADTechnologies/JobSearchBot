@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
@@ -37,6 +38,25 @@ def build_session() -> requests.Session:
     return session
 
 
+def get_json(session: requests.Session, url: str, attempts: int = 4) -> dict:
+    """GET JSON with retries. Datacenter IPs (e.g. GitHub Actions) sometimes hit
+    transient rate-limits / 5xx from jobsearch.az, so back off and retry instead
+    of letting a single bad response crash the whole run."""
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            response = session.get(url, timeout=30)
+            if response.status_code in (429, 500, 502, 503, 504):
+                raise requests.HTTPError(f"HTTP {response.status_code}")
+            response.raise_for_status()
+            return response.json()
+        except (requests.RequestException, ValueError) as exc:
+            last_error = exc
+            if attempt < attempts - 1:
+                time.sleep(2 * (attempt + 1))  # 2s, 4s, 6s backoff
+    raise RuntimeError(f"Request failed after {attempts} attempts: {url} ({last_error})")
+
+
 def fetch_all_jobs(session: requests.Session | None = None, max_pages: int = 300) -> list[Job]:
     """Return every vacancy on the site by following the API's `next` cursor."""
     session = session or build_session()
@@ -47,9 +67,13 @@ def fetch_all_jobs(session: requests.Session | None = None, max_pages: int = 300
     pages = 0
 
     while url and pages < max_pages:
-        response = session.get(url, timeout=25)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            data = get_json(session, url)
+        except RuntimeError as exc:
+            # Give up on further pages but keep everything gathered so far, so a
+            # transient failure deep in pagination does not abort the whole run.
+            print(f"Warning: stopped paginating early: {exc}")
+            break
 
         items = data.get("items", [])
         for item in items:
@@ -88,9 +112,7 @@ def enrich_job(job: Job, session: requests.Session | None = None) -> Job:
     """Fetch a single vacancy's full text + category from the detail API."""
     session = session or build_session()
     slug = job.url.rstrip("/").rsplit("/", 1)[-1]
-    response = session.get(f"{API_BASE}/{slug}?hl=az", timeout=25)
-    response.raise_for_status()
-    data = response.json()
+    data = get_json(session, f"{API_BASE}/{slug}?hl=az")
 
     title = clean_text(data.get("title", "")) or job.title
 
