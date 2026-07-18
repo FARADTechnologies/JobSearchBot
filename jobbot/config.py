@@ -17,6 +17,12 @@ class Config:
     send_maybe_matches: bool
     max_jobs_per_run: int
     seen_db_path: str
+    # Faz 1: multi-user
+    supabase_url: str
+    supabase_secret_key: str
+    groq_api_key: str
+    groq_model: str
+    enrich_budget_per_run: int
 
     @property
     def telegram_enabled(self) -> bool:
@@ -25,6 +31,10 @@ class Config:
     @property
     def ai_enabled(self) -> bool:
         return bool(self.openai_api_key)
+
+    @property
+    def supabase_enabled(self) -> bool:
+        return bool(self.supabase_url and self.supabase_secret_key)
 
 
 def load_config() -> Config:
@@ -41,4 +51,9 @@ def load_config() -> Config:
         in {"1", "true", "yes", "y", "on"},
         max_jobs_per_run=int(os.getenv("MAX_JOBS_PER_RUN", "150")),
         seen_db_path=os.getenv("SEEN_DB_PATH", "data/seen_jobs.json"),
+        supabase_url=os.getenv("SUPABASE_URL", "").strip(),
+        supabase_secret_key=os.getenv("SUPABASE_SECRET_KEY", "").strip(),
+        groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
+        groq_model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip(),
+        enrich_budget_per_run=int(os.getenv("ENRICH_BUDGET_PER_RUN", "60")),
     )

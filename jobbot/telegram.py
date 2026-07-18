@@ -11,7 +11,11 @@ from .models import Classification, Job
 MAX_MESSAGE_CHARS = 3800
 
 
-def send_matches(config: Config, matches: list[tuple[Job, Classification]]) -> None:
+def api_url(config: Config, method: str) -> str:
+    return f"https://api.telegram.org/bot{config.telegram_bot_token}/{method}"
+
+
+def send_matches(config: Config, matches: list[tuple[Job, Classification]], chat_id: str | int | None = None) -> None:
     """Send all matches in as few Telegram messages as possible (batched)."""
     if not config.telegram_enabled:
         raise RuntimeError("Telegram is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
@@ -19,7 +23,7 @@ def send_matches(config: Config, matches: list[tuple[Job, Classification]]) -> N
         return
 
     for text in build_batch_messages(matches):
-        _send(config, text)
+        _send(config, text, chat_id=chat_id)
 
 
 def build_batch_messages(matches: list[tuple[Job, Classification]]) -> list[str]:
@@ -73,12 +77,15 @@ def format_date(value: str) -> str:
     return value
 
 
-def _send(config: Config, text: str) -> None:
-    url = f"https://api.telegram.org/bot{config.telegram_bot_token}/sendMessage"
+def send_text(config: Config, chat_id: str | int, text: str) -> None:
+    _send(config, text, chat_id=chat_id)
+
+
+def _send(config: Config, text: str, chat_id: str | int | None = None) -> None:
     response = requests.post(
-        url,
+        api_url(config, "sendMessage"),
         json={
-            "chat_id": config.telegram_chat_id,
+            "chat_id": chat_id if chat_id is not None else config.telegram_chat_id,
             "text": text,
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
@@ -86,3 +93,33 @@ def _send(config: Config, text: str) -> None:
         timeout=25,
     )
     response.raise_for_status()
+
+
+# ---------- inbound (multi-user onboarding) ----------
+
+
+def get_updates(config: Config, offset: int | None = None) -> list[dict]:
+    """Fetch pending updates once (no long polling - we run from cron)."""
+    params: dict = {"timeout": 0, "allowed_updates": '["message"]'}
+    if offset is not None:
+        params["offset"] = offset
+    response = requests.get(api_url(config, "getUpdates"), params=params, timeout=25)
+    response.raise_for_status()
+    return response.json().get("result", [])
+
+
+def get_file_bytes(config: Config, file_id: str, max_bytes: int = 15_000_000) -> bytes:
+    """Download a file (e.g. an uploaded CV pdf) from Telegram."""
+    response = requests.get(api_url(config, "getFile"), params={"file_id": file_id}, timeout=25)
+    response.raise_for_status()
+    file_path = response.json()["result"]["file_path"]
+    file_response = requests.get(
+        f"https://api.telegram.org/file/bot{config.telegram_bot_token}/{file_path}",
+        timeout=60,
+        stream=True,
+    )
+    file_response.raise_for_status()
+    data = file_response.raw.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError("file too large")
+    return data

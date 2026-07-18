@@ -1,72 +1,50 @@
 # JobSearchBot
 
-JobSearch.az uzerinden yeni ilanlari kontrol eden, STEAM/STEM, robotika, kodlama ve teknoloji egitmenligi ile alakali isleri bulan ve Telegram'a bildiren Python botu.
+JobSearch.az üzerindeki **tüm aktif ilanları** tarayıp kullanıcının profiline uygun
+işleri Telegram'a bildiren bot. Vizyon ve yol haritası: [VISION.md](VISION.md) ·
+Teknik mimari: [ARCHITECTURE.md](ARCHITECTURE.md)
 
-Bot iki seviyeli calisir:
+## Nasıl çalışıyor
 
-1. Hizli filtre: Baslik, sirket ve ilan metninde genis anahtar kelime/sinyal arar.
-2. Akilli siniflandirma: `OPENAI_API_KEY` varsa ilani kullanici profiline gore AI ile degerlendirir.
+- **GitHub Actions** günde 5 kez çalıştırır (Bakü 09/12/15/18/21) — hiçbir yerel
+  makine gerekmez.
+- Scraper, sitenin JSON API'sini sayfalayarak ~2700 ilanın tamamını çeker
+  (retry/backoff ile).
+- İki akış vardır:
+  - **Legacy (tek kullanıcı):** `.env`/Secrets'teki `TELEGRAM_CHAT_ID` için
+    kural-tabanlı sınıflandırma (`jobbot/classifier.py`).
+  - **Faz 1 (çok kullanıcı, Supabase):** kullanıcılar bota `/start` deyip CV (PDF)
+    yükler; her kullanıcı kendi profiline göre eşleşme alır. İlan korpusu tüm
+    kullanıcılar için ortaktır ve bir kez analiz edilip cache'lenir.
 
-API anahtari yoksa bot yine calisir, fakat sadece yerel kural tabanli karar verir.
-
-## Kurulum
+## Kurulum (geliştirme)
 
 ```powershell
-cd "C:\Users\ACER\Documents\My Projects\JobSearchBot"
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env
-```
-
-`.env` icinde en az sunlari doldur:
-
-```env
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-```
-
-OpenAI ile daha akilli karar vermesini istiyorsan:
-
-```env
-OPENAI_API_KEY=...
-```
-
-## Calistirma
-
-```powershell
-.\run.ps1
-```
-
-Test icin Telegram gondermeden sadece tarama ve karar ciktilarini gormek istersen:
-
-```powershell
+Copy-Item .env.example .env   # değerleri doldur
 .\.venv\Scripts\python.exe -m jobbot --dry-run
 ```
 
-## Windows Task Scheduler
+## Faz 1 kurulumu (çok kullanıcı)
 
-Task Scheduler'da yeni task olustur:
+1. Supabase projesi oluştur → `supabase/migrations/001_init.sql` içeriğini
+   SQL Editor'de çalıştır.
+2. `.env` (yerel) ve GitHub Actions Secrets'e ekle:
+   - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
+   - `GROQ_API_KEY` (opsiyonel — yoksa CV profili heuristik çıkarılır)
+3. Bot çalıştığında gelen `/start` + CV yüklemelerini her cron turunda işler.
 
-- Program/script: `powershell.exe`
-- Arguments: `-ExecutionPolicy Bypass -File "C:\Users\ACER\Documents\My Projects\JobSearchBot\run.ps1"`
-- Start in: `C:\Users\ACER\Documents\My Projects\JobSearchBot`
+Gizlilik kuralı: **CV'ler kişisel veridir** — yalnızca veriyi eğitimde kullanmayan
+sağlayıcılara gönderilir (Groq/Cohere). Ayrıntı: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-15-30 dakikada bir calistirmak yeterlidir. Bot `data/seen_jobs.json` dosyasina gordugu ilanlari yazar, ayni ilani tekrar gondermez.
+## GitHub Secrets (Actions)
 
-## Hedef Profil
-
-Ilgili sayilan isler:
-
-- STEAM/STEM muellimliyi
-- Robotika muellimliyi veya telimcisi
-- Kodlama/proqramlasdirma/informatika muellimi
-- Usaqlar ve yeniyetmeler ucun texnologiya tehsili
-- Mekteb, kurs, academy, tehsil merkezi rolleri
-
-Ilgisiz sayilan isler:
-
-- Sadece software developer isleri
-- IT support/admin isleri
-- Satis, call center, ofis meneceri
-- Tehsil veya telimle alakasi olmayan muhendislik rolleri
+| Secret | Zorunlu | Açıklama |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | ✅ | BotFather token'ı |
+| `TELEGRAM_CHAT_ID` | ✅ | Legacy tek-kullanıcı chat id |
+| `SUPABASE_URL` | Faz 1 için | Proje URL'i |
+| `SUPABASE_SECRET_KEY` | Faz 1 için | service_role secret key |
+| `GROQ_API_KEY` | opsiyonel | CV profil çıkarımı (LLM) |
+| `OPENAI_API_KEY` | opsiyonel | Legacy AI sınıflandırma |
