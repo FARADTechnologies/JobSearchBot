@@ -75,7 +75,7 @@ Sonra kullanıcı bunları **hard filtre** olarak seçer (SQL WHERE). Kullanıc�
 |---|---|---|---|
 | 1 | **HelloJob.az** | Kendi HR müşterileri | "Azerbaycan #1" iddiası, büyük hacim |
 | 2 | **JobSearch.az** | Kendi müşterileri | ✅ Zaten entegre (API çözüldü) |
-| 3 | **BirJob.com** | **Agregatör (50+ kaynak, 8000+ ilan)** | En geniş kapsam. Ama "scraper'ı scrape etmek" — kırılgan + ToS riski. Değerlendir. |
+| 3 | **BirJob.com** | **Agregatör — RESMİ API!** | ⭐⭐ 91 kaynağı tekilleştirip tek API'den veriyor, ~12.257 ilan. Aşağıya bak. |
 | 4 | **Boss.az** | Agregatör | Büyük |
 | 5 | **Jooble.az** | Agregatör | Global Jooble'ın AZ kolu |
 | 6 | **AZJOB.az** | İlan sitesi | |
@@ -86,14 +86,59 @@ Sonra kullanıcı bunları **hard filtre** olarak seçer (SQL WHERE). Kullanıc�
 Himalayas, DailyRemote, Workana. the founder "homora gibi AI ile remote" istediği için bunlar
 onun kişisel akışı için değerli, ama scraping'i risklidir — sonraki aşama.
 
-### Strateji
-- Her kaynak = bir **adapter** (jobsearch.az'daki `scraper.py` deseni). Ortak `Job` modeline
-  normalize et.
-- **Dedup şart** (aynı ilan birden çok sitede): fingerprint (şirket+başlık+normalize) veya
-  embedding benzerliği.
-- **Sıra:** önce HelloJob + Boss (doğrudan, en büyük yerli hacim), BirJob'u ayrı değerlendir
-  (tek entegrasyonla 50+ kaynak cazip ama bağımlılık riski).
-- **ToS/hukuk:** yavaş tara, robots.txt, login arkasına geçme (ARCHITECTURE.md riskleri).
+### ⭐ BirJob API — oyun değiştirici (2026-08 keşfi)
+`https://www.birjob.com/api/v1` — resmi geliştirici API'si (Bearer token, kayıtta otomatik
+anahtar `/developers/keys`). Bizim 8 adapter yazmamız yerine **91 kaynağı tekilleştirilmiş
+şekilde tek entegrasyonla** verir. Kritik: yanıt alanları tam da istediklerimiz —
+`employment_type` (Full/Part-time/Contract/Internship/Freelance), `work_type`
+(Onsite/Hybrid/Remote) + `is_remote`, `salary_from/to`, `description_text`,
+`requirements_text`, `apply_link`, `source`, `deadline_at`, `contact_email/phone`.
+`from_id` ile artımlı senkron. Günde 3x GitHub Actions cron ile taranıyor.
+
+**Bu, remote/part-time özelliğinin yapılandırılmış tarafını neredeyse hazır çözüyor**
+(is_remote / employment_type alanları). LLM sadece bunların eksik/yanlış olduğu ilanlar
+için gerekir.
+
+**Riskler:**
+- **Ücretli/kotalı** (aylık "unit" kotası, plana bağlı; bedava tier açık değil — kayıtta
+  kontrol et). /v1/jobs = 1 unit (arama 5). Tam senkron ~123 istek; `from_id` ile ucuz.
+- **Tek nokta bağımlılığı** + BirJob'un kendisi de bir AZ iş platformu (iOS app) =
+  potansiyel rakip. Bizi keserse çok-kaynak çöker.
+- **Mitigasyon:** BirJob'u kapsam genişletme + doğrulama olarak kullan, kendi jobsearch.az
+  scraper'ımızı birincil/yedek tut, uzun vadede en büyük 2-3 site için kendi adapter'lerimiz.
+
+### Strateji (güncel)
+- **Faz A:** BirJob API'yi bir kaynak adapter'ı olarak ekle (bedava kota yeterse) → anında
+  91 kaynak + yapılandırılmış remote/part-time alanları.
+- **Faz B:** en büyük siteler için (HelloJob, Boss) kendi doğrudan adapter'lerimiz (bağımlılık
+  azaltma).
+- **Dedup şart** (BirJob kendi içinde tekilleştiriyor ama biz + jobsearch.az birleşince tekrar
+  gerekir): fingerprint/embedding.
+- **ToS/hukuk:** BirJob API'si resmi (yeşil); doğrudan scraping'de yavaş + robots.txt.
+
+---
+
+## YENİ (ZORUNLU) ÖZELLİK: Dolandırıcılık / sahte ilan filtresi
+
+**Neden zorunlu:** Remote iş dolandırıcılığı patlıyor (2026'da ~521M$ zarar, Mayıs-Temmuz
+arası %1000 artış). Özellikle remote/part-time = en yüksek dolandırıcılık yoğunluğu. Bizim
+için normal bir kullanıcıdan **daha kritik**, çünkü Faz 2'de **oto-başvuru** var — sahte bir
+ilana otomatik başvurmak = kullanıcının CV'sini/kişisel verisini dolandırıcıya göndermek.
+
+**Kırmızı bayraklar (LLM-judge / kural katmanına eklenecek):**
+- Peşin ödeme / "kayıt ücreti" isteyen
+- Gerçekçi olmayan yüksek maaş, aşırı belirsiz iş tanımı, aciliyet baskısı
+- Sadece WhatsApp/Telegram'a yönlendiren, kurumsal e-posta yerine gmail/şahsi iletişim
+- Erken aşamada pasaport/banka/şəxsiyyət vəsiqəsi isteyen
+- Şirket adı doğrulanamıyor / kariyer sayfası yok
+
+**Uygulama:** çıkarım aşamasına `fraud_risk`: low|medium|high alanı; high olanlar
+bildirilmez veya "⚠️ şüpheli" etiketiyle bildirilir; oto-başvuru **asla** high'a yapmaz.
+
+**BirJob'un kendisi güvenli mi?** Evet — BirJob geçişli (pass-through) agregatör: ilanı
+kaynağından listeler, kaynağı gösterir, başvuru **orijinal sitede** yapılır; CV toplamaz.
+Yani BirJob veri çalan taraf değil. Risk, alttaki 91 kaynağın içindeki sahte ilanlarda —
+onu da yukarıdaki filtre ele alır.
 
 ---
 
