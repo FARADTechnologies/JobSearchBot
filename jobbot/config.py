@@ -23,6 +23,10 @@ class Config:
     groq_api_key: str
     groq_model: str
     enrich_budget_per_run: int
+    # Global remote track (additive personal feature)
+    remote_track_enabled: bool
+    remote_seen_path: str
+    remote_max_per_run: int
 
     @property
     def telegram_enabled(self) -> bool:
@@ -56,4 +60,8 @@ def load_config() -> Config:
         groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
         groq_model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip(),
         enrich_budget_per_run=int(os.getenv("ENRICH_BUDGET_PER_RUN", "60")),
+        remote_track_enabled=os.getenv("REMOTE_TRACK_ENABLED", "true").strip().lower()
+        in {"1", "true", "yes", "y", "on"},
+        remote_seen_path=os.getenv("REMOTE_SEEN_PATH", "data/seen_remote.json"),
+        remote_max_per_run=int(os.getenv("REMOTE_MAX_PER_RUN", "25")),
     )

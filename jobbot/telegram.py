@@ -98,6 +98,54 @@ def _send(config: Config, text: str, chat_id: str | int | None = None) -> None:
 # ---------- inbound (multi-user onboarding) ----------
 
 
+# ---------- global remote track (additive; independent of the jobsearch flow) ----------
+
+
+def build_remote_messages(jobs: list[dict]) -> list[str]:
+    blocks = [format_remote_block(i, j) for i, j in enumerate(jobs, 1)]
+    chunks: list[list[str]] = [[]]
+    length = 0
+    for block in blocks:
+        extra = len(block) + 2
+        if chunks[-1] and length + extra > MAX_MESSAGE_CHARS:
+            chunks.append([])
+            length = 0
+        chunks[-1].append(block)
+        length += extra
+    total = len(chunks)
+    messages: list[str] = []
+    for part, chunk in enumerate(chunks, 1):
+        header = f"🌍 <b>{len(jobs)} yeni remote iş</b>"
+        if total > 1:
+            header += f" (bölüm {part}/{total})"
+        messages.append("\n\n".join([header, *chunk]))
+    return messages
+
+
+def format_remote_block(index: int, job: dict) -> str:
+    lines = [f"<b>{index}. {html.escape(job['title'])}</b>"]
+    if job.get("company"):
+        lines.append(f"🏢 {html.escape(job['company'])}")
+    meta = " · ".join(
+        part
+        for part in [job.get("source"), job.get("job_type"), job.get("location"), job.get("salary")]
+        if part
+    )
+    if meta:
+        lines.append(f"🌐 {html.escape(meta)}")
+    lines.append(f"🔗 <a href=\"{html.escape(job['url'])}\">Elanı aç</a>")
+    return "\n".join(lines)
+
+
+def send_remote(config: Config, jobs: list[dict], chat_id: str | int | None = None) -> None:
+    if not config.telegram_enabled:
+        raise RuntimeError("Telegram is not configured.")
+    if not jobs:
+        return
+    for text in build_remote_messages(jobs):
+        _send(config, text, chat_id=chat_id)
+
+
 def get_updates(config: Config, offset: int | None = None) -> list[dict]:
     """Fetch pending updates once (no long polling - we run from cron)."""
     params: dict = {"timeout": 0, "allowed_updates": '["message"]'}
