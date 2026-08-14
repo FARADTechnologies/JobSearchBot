@@ -27,6 +27,8 @@ class Config:
     remote_track_enabled: bool
     remote_seen_path: str
     remote_max_per_run: int
+    remote_telegram_chat_id: str
+    remote_geo_filter: bool
 
     @property
     def telegram_enabled(self) -> bool:
@@ -64,4 +66,7 @@ def load_config() -> Config:
         in {"1", "true", "yes", "y", "on"},
         remote_seen_path=os.getenv("REMOTE_SEEN_PATH", "data/seen_remote.json"),
         remote_max_per_run=int(os.getenv("REMOTE_MAX_PER_RUN", "25")),
+        remote_telegram_chat_id=os.getenv("REMOTE_TELEGRAM_CHAT_ID", "").strip(),
+        remote_geo_filter=os.getenv("REMOTE_GEO_FILTER", "true").strip().lower()
+        in {"1", "true", "yes", "y", "on"},
     )

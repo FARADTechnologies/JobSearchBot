@@ -1,0 +1,53 @@
+name: RemoteJobs
+
+on:
+  schedule:
+    # Every hour — remote APIs are cheap/fast, so this stays well within free minutes.
+    - cron: "10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remote-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run remote track
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Optional: a separate group/channel for remote jobs. Falls back to the
+          # main chat if this secret is not set.
+          REMOTE_TELEGRAM_CHAT_ID: ${{ secrets.REMOTE_TELEGRAM_CHAT_ID }}
+          PYTHONUTF8: "1"
+        run: python -m jobbot --remote-only
+
+      - name: Persist seen remote jobs
+        run: |
+          if [ -n "$(git status --porcelain data/seen_remote.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/seen_remote.json
+            git commit -m "chore: update seen remote jobs [skip ci]"
+            git pull --rebase origin main || true
+            git push
+          else
+            echo "No new remote jobs to persist."
+          fi

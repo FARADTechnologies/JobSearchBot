@@ -39,16 +39,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # Remote track runs in its own faster workflow (remote.yml).
+          REMOTE_TRACK_ENABLED: "false"
           PYTHONUTF8: "1"
         run: python -m jobbot
 
       - name: Persist seen jobs
         run: |
-          if [ -n "$(git status --porcelain data/seen_jobs.json data/seen_remote.json)" ]; then
+          if [ -n "$(git status --porcelain data/seen_jobs.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add data/seen_jobs.json data/seen_remote.json
+            git add data/seen_jobs.json
             git commit -m "chore: update seen jobs [skip ci]"
+            git pull --rebase origin main || true
             git push
           else
             echo "No new seen jobs to persist."

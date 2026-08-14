@@ -57,6 +57,28 @@ def is_relevant(title: str, extra: str) -> bool:
     return bool(RELEVANCE.search(blob))
 
 
+# An Azerbaijan resident can realistically take these; drop region-locked ones.
+GEO_ELIGIBLE = re.compile(
+    r"worldwide|anywhere|global|remote|emea|europe|asia|middle east|cis|"
+    r"azerbaijan|turkey|türkiye|any location|international", re.I
+)
+GEO_RESTRICTED = re.compile(
+    r"\b(usa|u\.s\.|united states|us only|us-based|canada|americas|latam|"
+    r"latin america|mexico|brazil|argentina|australia|new zealand)\b", re.I
+)
+
+
+def is_geo_eligible(location: str) -> bool:
+    """Keep worldwide/EMEA/Europe-eligible; drop clearly region-locked. Unknown -> keep."""
+    if not location:
+        return True
+    if GEO_ELIGIBLE.search(location):
+        return True
+    if GEO_RESTRICTED.search(location):
+        return False
+    return True  # benefit of the doubt for anything unrecognised
+
+
 def _get(url: str) -> requests.Response:
     return requests.get(url, headers=HEADERS, timeout=25)
 
@@ -164,8 +186,8 @@ def _salary(lo, hi) -> str:
 SOURCES = [fetch_remotive, fetch_remoteok, fetch_arbeitnow, fetch_jobicy]
 
 
-def fetch_global_remote(log=print) -> list[dict]:
-    """Fetch + relevance-filter + dedup across all sources. Never raises."""
+def fetch_global_remote(log=print, geo_filter: bool = True) -> list[dict]:
+    """Fetch + relevance-filter + (optional) geo-filter + dedup. Never raises."""
     collected: list[dict] = []
     for fetch in SOURCES:
         try:
@@ -175,9 +197,10 @@ def fetch_global_remote(log=print) -> list[dict]:
                 for r in rows
                 if r.get("url")
                 and is_relevant(r["title"], " ".join(r.get("tags", [])) + " " + r.get("category", ""))
+                and (not geo_filter or is_geo_eligible(r.get("location", "")))
             ]
             collected.extend(kept)
-            log(f"  {fetch.__name__}: {len(rows)} fetched, {len(kept)} relevant")
+            log(f"  {fetch.__name__}: {len(rows)} fetched, {len(kept)} relevant+eligible")
         except Exception as exc:  # noqa: BLE001
             log(f"  {fetch.__name__}: FAILED ({exc})")
 
