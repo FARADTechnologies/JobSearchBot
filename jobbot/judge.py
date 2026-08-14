@@ -76,41 +76,62 @@ def _job_line(job: dict) -> dict:
     }
 
 
-def evaluate_batch(jobs: list[dict], config: Config, batch_size: int = 12, log=print) -> dict[str, dict]:
-    """Return {job_id: {decision, score, reason, why_fits}}. Never raises."""
+def evaluate_batch(
+    jobs: list[dict], config: Config, batch_size: int = 18, log=print, debug: bool = False
+) -> dict[str, dict]:
+    """Return {job_id: {decision, score, reason, why_fits}}. Never raises.
+
+    debug=True prints the exact prompt and raw model response so we can see
+    everything going into and out of the LLM.
+    """
     verdicts: dict[str, dict] = {}
     if not config.llm_judge_enabled or not config.gemini_api_key:
+        log("  LLM judge disabled or no GEMINI_API_KEY.")
         return verdicts
 
+    id_to_job = {j["id"]: j for j in jobs}
+
     for i in range(0, len(jobs), batch_size):
+        if i > 0:
+            time.sleep(1)  # gentle pacing to respect free-tier per-minute limits
         chunk = jobs[i : i + batch_size]
+        batch_no = i // batch_size + 1
+        prompt = PROMPT_TEMPLATE.format(
+            spec=PROFILE_SPEC,
+            jobs=json.dumps([_job_line(j) for j in chunk], ensure_ascii=False),
+        )
         payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": PROMPT_TEMPLATE.format(
-                                spec=PROFILE_SPEC,
-                                jobs=json.dumps([_job_line(j) for j in chunk], ensure_ascii=False),
-                            )
-                        }
-                    ]
-                }
-            ],
+            "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
         }
-        text = _post_with_retries(config, payload, log, i // batch_size + 1)
+        if debug:
+            log(f"\n===== LLM BATCH {batch_no} PROMPT =====\n{prompt}\n")
+
+        text = _post_with_retries(config, payload, log, batch_no)
         if not text:
             continue  # transient failure -> those jobs stay unseen, retried next run
+        if debug:
+            log(f"===== LLM BATCH {batch_no} RAW RESPONSE =====\n{text}\n")
+
         try:
-            if text.startswith("```"):
-                text = text.split("```", 2)[1].lstrip("json").strip()
-            for v in json.loads(text):
+            clean = text
+            if clean.startswith("```"):
+                clean = clean.split("```", 2)[1].lstrip("json").strip()
+            for v in json.loads(clean):
                 if v.get("id"):
                     verdicts[str(v["id"])] = v
+                    job = id_to_job.get(str(v["id"]), {})
+                    log(
+                        f"  [{v.get('decision','?'):5}] {str(v.get('score','?')):>3}  "
+                        f"{(job.get('title') or v['id'])[:45]:45} | {v.get('reason','')[:50]}"
+                    )
         except Exception as exc:  # noqa: BLE001 - bad JSON; skip this batch
-            log(f"  LLM batch parse failed: {exc}")
+            log(f"  LLM batch {batch_no} parse failed: {exc}")
 
+    yes = sum(1 for v in verdicts.values() if v.get("decision") == "yes")
+    maybe = sum(1 for v in verdicts.values() if v.get("decision") == "maybe")
+    no = sum(1 for v in verdicts.values() if v.get("decision") == "no")
+    log(f"  LLM summary: {len(verdicts)} judged -> yes={yes}, maybe={maybe}, no={no}")
     return verdicts
 
 
