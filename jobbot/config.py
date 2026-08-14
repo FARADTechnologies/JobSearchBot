@@ -84,10 +84,10 @@ def load_config() -> Config:
         adzuna_app_id=os.getenv("ADZUNA_APP_ID", "").strip(),
         adzuna_app_key=os.getenv("ADZUNA_APP_KEY", "").strip(),
         gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3-flash-preview").strip(),
         llm_judge_enabled=os.getenv("LLM_JUDGE_ENABLED", "true").strip().lower()
         in {"1", "true", "yes", "y", "on"},
-        llm_judge_max=int(os.getenv("LLM_JUDGE_MAX", "60")),
+        llm_judge_max=int(os.getenv("LLM_JUDGE_MAX", "100")),
         remote_min_salary=int(os.getenv("REMOTE_MIN_SALARY", "0")),
         remote_digest=os.getenv("REMOTE_DIGEST", "false").strip().lower()
         in {"1", "true", "yes", "y", "on"},

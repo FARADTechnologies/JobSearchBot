@@ -177,35 +177,69 @@ def fetch_jobicy() -> list[dict]:
     return out
 
 
-def fetch_adzuna(app_id: str, app_key: str) -> list[dict]:
+def fetch_adzuna(app_id: str, app_key: str, pages: int = 3) -> list[dict]:
     """Adzuna aggregates millions of listings across countries. We query several
-    countries for 'remote' postings; the LLM judge decides true eligibility."""
+    countries (multiple pages) for 'remote' postings; the LLM decides eligibility."""
     countries = ["gb", "us", "de", "nl", "ie", "at", "fr", "au", "in", "sg", "ca"]
     out = []
     for c in countries:
+        for page in range(1, pages + 1):
+            try:
+                url = (
+                    f"https://api.adzuna.com/v1/api/jobs/{c}/search/{page}"
+                    f"?app_id={app_id}&app_key={app_key}&results_per_page=50"
+                    f"&what=remote&content-type=application/json"
+                )
+                results = _get(url).json().get("results", [])
+            except Exception:  # noqa: BLE001 - one page failing must not stop the rest
+                break
+            if not results:
+                break
+            for j in results:
+                out.append(
+                    {
+                        "id": f"adzuna-{j.get('id')}",
+                        "source": f"Adzuna/{c}",
+                        "title": clean(j.get("title", "")),
+                        "company": clean((j.get("company") or {}).get("display_name", "")),
+                        "url": j.get("redirect_url", ""),
+                        "job_type": (j.get("contract_time") or "").replace("_", "-"),
+                        "location": clean((j.get("location") or {}).get("display_name", "")),
+                        "salary": _salary(j.get("salary_min"), j.get("salary_max")),
+                        "date": (j.get("created") or "")[:10],
+                        "tags": [],
+                        "category": clean((j.get("category") or {}).get("label", "")),
+                    }
+                )
+    return out
+
+
+def fetch_themuse(pages: int = 3) -> list[dict]:
+    """The Muse public API (no key). Remote-flexible jobs."""
+    out = []
+    for page in range(1, pages + 1):
         try:
-            url = (
-                f"https://api.adzuna.com/v1/api/jobs/{c}/search/1"
-                f"?app_id={app_id}&app_key={app_key}&results_per_page=50"
-                f"&what=remote&content-type=application/json"
-            )
-            data = _get(url).json()
-        except Exception:  # noqa: BLE001 - one country failing must not stop the rest
-            continue
-        for j in data.get("results", []):
+            url = f"https://www.themuse.com/api/public/jobs?page={page}&location=Flexible%20%2F%20Remote"
+            results = _get(url).json().get("results", [])
+        except Exception:  # noqa: BLE001
+            break
+        if not results:
+            break
+        for j in results:
+            locs = ", ".join(l.get("name", "") for l in (j.get("locations") or []))
             out.append(
                 {
-                    "id": f"adzuna-{j.get('id')}",
-                    "source": f"Adzuna/{c}",
-                    "title": clean(j.get("title", "")),
-                    "company": clean((j.get("company") or {}).get("display_name", "")),
-                    "url": j.get("redirect_url", ""),
-                    "job_type": (j.get("contract_time") or "").replace("_", "-"),
-                    "location": clean((j.get("location") or {}).get("display_name", "")),
-                    "salary": _salary(j.get("salary_min"), j.get("salary_max")),
-                    "date": (j.get("created") or "")[:10],
-                    "tags": [],
-                    "category": clean((j.get("category") or {}).get("label", "")),
+                    "id": f"themuse-{j.get('id')}",
+                    "source": "TheMuse",
+                    "title": clean(j.get("name", "")),
+                    "company": clean((j.get("company") or {}).get("name", "")),
+                    "url": (j.get("refs") or {}).get("landing_page", ""),
+                    "job_type": clean(j.get("type", "")),
+                    "location": clean(locs) or "Remote",
+                    "salary": "",
+                    "date": (j.get("publication_date") or "")[:10],
+                    "tags": [c.get("name", "") for c in (j.get("categories") or [])],
+                    "category": ", ".join(l.get("name", "") for l in (j.get("levels") or [])),
                 }
             )
     return out
@@ -241,7 +275,7 @@ def passes_salary(job: dict, floor: int) -> bool:
     return low is None or low >= floor
 
 
-SOURCES = [fetch_remotive, fetch_remoteok, fetch_arbeitnow, fetch_jobicy]
+SOURCES = [fetch_remotive, fetch_remoteok, fetch_arbeitnow, fetch_jobicy, fetch_themuse]
 
 
 def fetch_global_remote(log=print, geo_filter: bool = True, adzuna: tuple | None = None) -> list[dict]:
