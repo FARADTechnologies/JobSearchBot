@@ -217,6 +217,30 @@ def _salary(lo, hi) -> str:
     return ""
 
 
+def salary_min_usd(text: str) -> int | None:
+    """Best-effort lower salary bound from a fuzzy string. None if unknown."""
+    if not text:
+        return None
+    m = re.search(r"(\d[\d,\.]*)\s*([kK])?", text.replace(",", ""))
+    if not m:
+        return None
+    try:
+        value = float(m.group(1))
+    except ValueError:
+        return None
+    if m.group(2):
+        value *= 1000
+    return int(value)
+
+
+def passes_salary(job: dict, floor: int) -> bool:
+    """Keep jobs at/above floor. Unknown salary -> kept (don't drop on missing data)."""
+    if floor <= 0:
+        return True
+    low = salary_min_usd(job.get("salary", ""))
+    return low is None or low >= floor
+
+
 SOURCES = [fetch_remotive, fetch_remoteok, fetch_arbeitnow, fetch_jobicy]
 
 

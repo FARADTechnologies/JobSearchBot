@@ -59,7 +59,7 @@ def main() -> None:
 
 def run_remote_track(config: Config, args) -> None:
     from .remote_sources import fetch_global_remote
-    from .telegram import build_remote_messages, send_remote
+    from .telegram import build_remote_digest, build_remote_messages, send_remote
 
     use_llm = config.llm_judge_enabled and bool(config.gemini_api_key)
 
@@ -70,8 +70,13 @@ def run_remote_track(config: Config, args) -> None:
         geo_filter=config.remote_geo_filter and not use_llm,
         adzuna=(config.adzuna_app_id, config.adzuna_app_key) if config.adzuna_enabled else None,
     )
+    from .remote_sources import passes_salary
+
     seen = SeenStore(config.remote_seen_path)
-    fresh = [j for j in jobs if not seen.has(j["id"])]
+    fresh = [
+        j for j in jobs
+        if not seen.has(j["id"]) and passes_salary(j, config.remote_min_salary)
+    ]
     print(f"Remote track: {len(jobs)} candidates, {len(fresh)} new. LLM judge: {use_llm}.")
 
     target_chat = config.remote_telegram_chat_id or config.telegram_chat_id
@@ -98,16 +103,18 @@ def run_remote_track(config: Config, args) -> None:
     else:
         batch = fresh[: config.remote_max_per_run]
 
+    render = build_remote_digest if config.remote_digest else build_remote_messages
+
     if args.dry_run:
         print("\n----- Remote preview -----")
-        for message in build_remote_messages(batch) if batch else ["(no new remote jobs)"]:
+        for message in render(batch) if batch else ["(no new remote jobs)"]:
             print(message)
             print("-----")
         return
 
     if batch:
         try:
-            send_remote(config, batch, chat_id=target_chat)
+            send_remote(config, batch, chat_id=target_chat, digest=config.remote_digest)
             for j in batch:
                 seen.add(j["id"])  # only sent jobs marked; un-sent yes/maybe retry next run
         except Exception as exc:  # noqa: BLE001

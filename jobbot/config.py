@@ -35,6 +35,8 @@ class Config:
     gemini_model: str
     llm_judge_enabled: bool
     llm_judge_max: int
+    remote_min_salary: int
+    remote_digest: bool
 
     @property
     def adzuna_enabled(self) -> bool:
@@ -86,4 +88,7 @@ def load_config() -> Config:
         llm_judge_enabled=os.getenv("LLM_JUDGE_ENABLED", "true").strip().lower()
         in {"1", "true", "yes", "y", "on"},
         llm_judge_max=int(os.getenv("LLM_JUDGE_MAX", "60")),
+        remote_min_salary=int(os.getenv("REMOTE_MIN_SALARY", "0")),
+        remote_digest=os.getenv("REMOTE_DIGEST", "false").strip().lower()
+        in {"1", "true", "yes", "y", "on"},
     )
