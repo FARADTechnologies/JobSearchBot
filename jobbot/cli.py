@@ -20,9 +20,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="JobSearch.az Telegram alert bot")
     parser.add_argument("--dry-run", action="store_true", help="Do not send Telegram messages or update state.")
     parser.add_argument("--max", type=int, default=None, help="Override max candidate jobs enriched per run.")
+    parser.add_argument("--remote-only", action="store_true", help="Run only the global remote track (skip jobsearch.az).")
     args = parser.parse_args()
 
     config = load_config()
+
+    # Lightweight mode for the frequent remote-only workflow: no site scrape.
+    if args.remote_only:
+        run_remote_track(config, args)
+        return
+
     session = build_session()
 
     jobs = fetch_all_jobs(session=session)
@@ -54,10 +61,13 @@ def run_remote_track(config: Config, args) -> None:
     from .remote_sources import fetch_global_remote
     from .telegram import build_remote_messages, send_remote
 
-    jobs = fetch_global_remote()
+    jobs = fetch_global_remote(geo_filter=config.remote_geo_filter)
     seen = SeenStore(config.remote_seen_path)
     fresh = [j for j in jobs if not seen.has(j["id"])]
     print(f"Remote track: {len(jobs)} relevant remote jobs, {len(fresh)} new.")
+
+    # Route to a dedicated chat (group/channel) if configured, else the main chat.
+    target_chat = config.remote_telegram_chat_id or config.telegram_chat_id
 
     # Bound each run so the first run does not flood; the rest arrive over
     # subsequent runs (seen store dedups).
@@ -72,7 +82,7 @@ def run_remote_track(config: Config, args) -> None:
 
     if batch:
         try:
-            send_remote(config, batch, chat_id=config.telegram_chat_id)
+            send_remote(config, batch, chat_id=target_chat)
             for j in batch:
                 seen.add(j["id"])
         except Exception as exc:  # noqa: BLE001
