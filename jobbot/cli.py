@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Do not send Telegram messages or update state.")
     parser.add_argument("--max", type=int, default=None, help="Override max candidate jobs enriched per run.")
     parser.add_argument("--remote-only", action="store_true", help="Run only the global remote track (skip jobsearch.az).")
+    parser.add_argument("--show-llm", action="store_true", help="Print the full LLM prompt + raw response for every batch.")
     args = parser.parse_args()
 
     config = load_config()
@@ -86,7 +87,7 @@ def run_remote_track(config: Config, args) -> None:
         from .judge import evaluate_batch
 
         to_judge = fresh[: config.llm_judge_max]
-        verdicts = evaluate_batch(to_judge, config)
+        verdicts = evaluate_batch(to_judge, config, debug=getattr(args, "show_llm", False))
         scored = []
         for j in to_judge:
             v = verdicts.get(j["id"])
