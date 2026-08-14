@@ -1,9 +1,37 @@
 # ROADMAP.md — JobSearchBot / Startup Yol Haritası
 
 > Yaşayan doküman. Vizyon: [VISION.md](VISION.md) · Mimari: [ARCHITECTURE.md](ARCHITECTURE.md)
-> Son güncelleme: 2026-08-06
+> Son güncelleme: 2026-08-15
 
-## Durum anlık görüntüsü
+## 🎯 ŞU ANKİ ODAK: the founder'in kişisel iş-bulma sistemi (startup ertelendi)
+
+Startup/çok-kullanıcı/CV-havuzu tarafı **bilerek ertelendi**. Şu an tek amaç: the founder'e
+iş bulan kişisel bir sistem. İki canlı akış var:
+
+- **🔔 Azerbaycan işleri** (jobsearch.az → robotik/STEAM eşleştirme) → DM, günde 5x
+- **🌍 Global remote işler** (Adzuna + 4 bedava board → LLM-judge → skor + "neden uygun")
+  → "Xarici İşlər Remote" grubu, saatlik
+
+### Yapılacaklar (öncelik sırası)
+
+0. **DOĞRULA (önce bu):** RemoteJobs workflow'unu tetikle, grup LLM-seçili skorlu işler
+   alıyor mu, kalite iyi mi, US-only gitmiş mi — gerçek çıktıyı gör. Kötüyse üstüne bir
+   şey inşa etme.
+1. **TUNE:** çıktıya göre profil spec'i, skor eşiği, hacim, maaş tabanını ayarla.
+2. **👍/👎 geri bildirim** (odaklı iş): yüksek-skor işleri butonla ayrı gönder →
+   tıklamayı işle → `data/remote_feedback.json` → beğenilmeyeni LLM prompt'una besle (moat).
+3. **Havuzu büyüt:** Jooble (60+ ülke, bedava key talep) + Careerjet + The Muse.
+4. **Oto-başvuru (LLM ile hedefli):** önce mail-tabanlı, sonra web form/ATS doldurma.
+5. **Başvuru takipçisi** (oto-başvuruyla birlikte).
+
+### Bitti (bu oturumlarda)
+Adzuna havuzu · Gemini LLM-judge (batch, retry, skor + why-fits) · ayrı grup routing ·
+saatlik remote workflow · geo-eligibility (LLM) · dedup · maaş filtresi · digest modu ·
+güvenlik taraması (repo public, temiz).
+
+---
+
+## Durum anlık görüntüsü (startup — ERTELENDİ)
 
 | Katman | Durum |
 |---|---|
