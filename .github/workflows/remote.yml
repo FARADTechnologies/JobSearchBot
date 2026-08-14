@@ -36,6 +36,10 @@ jobs:
           # Optional: a separate group/channel for remote jobs. Falls back to the
           # main chat if this secret is not set.
           REMOTE_TELEGRAM_CHAT_ID: ${{ secrets.REMOTE_TELEGRAM_CHAT_ID }}
+          # Pool expansion (Adzuna) + LLM judge (Gemini). Missing -> graceful fallback.
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONUTF8: "1"
         run: python -m jobbot --remote-only
 
