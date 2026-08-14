@@ -177,6 +177,40 @@ def fetch_jobicy() -> list[dict]:
     return out
 
 
+def fetch_adzuna(app_id: str, app_key: str) -> list[dict]:
+    """Adzuna aggregates millions of listings across countries. We query several
+    countries for 'remote' postings; the LLM judge decides true eligibility."""
+    countries = ["gb", "us", "de", "nl", "ie", "at", "fr", "au", "in", "sg", "ca"]
+    out = []
+    for c in countries:
+        try:
+            url = (
+                f"https://api.adzuna.com/v1/api/jobs/{c}/search/1"
+                f"?app_id={app_id}&app_key={app_key}&results_per_page=50"
+                f"&what=remote&content-type=application/json"
+            )
+            data = _get(url).json()
+        except Exception:  # noqa: BLE001 - one country failing must not stop the rest
+            continue
+        for j in data.get("results", []):
+            out.append(
+                {
+                    "id": f"adzuna-{j.get('id')}",
+                    "source": f"Adzuna/{c}",
+                    "title": clean(j.get("title", "")),
+                    "company": clean((j.get("company") or {}).get("display_name", "")),
+                    "url": j.get("redirect_url", ""),
+                    "job_type": (j.get("contract_time") or "").replace("_", "-"),
+                    "location": clean((j.get("location") or {}).get("display_name", "")),
+                    "salary": _salary(j.get("salary_min"), j.get("salary_max")),
+                    "date": (j.get("created") or "")[:10],
+                    "tags": [],
+                    "category": clean((j.get("category") or {}).get("label", "")),
+                }
+            )
+    return out
+
+
 def _salary(lo, hi) -> str:
     if lo and hi:
         return f"${int(lo)//1000}k-${int(hi)//1000}k"
@@ -186,10 +220,14 @@ def _salary(lo, hi) -> str:
 SOURCES = [fetch_remotive, fetch_remoteok, fetch_arbeitnow, fetch_jobicy]
 
 
-def fetch_global_remote(log=print, geo_filter: bool = True) -> list[dict]:
+def fetch_global_remote(log=print, geo_filter: bool = True, adzuna: tuple | None = None) -> list[dict]:
     """Fetch + relevance-filter + (optional) geo-filter + dedup. Never raises."""
+    sources = list(SOURCES)
+    if adzuna and adzuna[0] and adzuna[1]:
+        sources.append(lambda: fetch_adzuna(adzuna[0], adzuna[1]))
+
     collected: list[dict] = []
-    for fetch in SOURCES:
+    for fetch in sources:
         try:
             rows = fetch()
             kept = [

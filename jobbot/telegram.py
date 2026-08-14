@@ -123,7 +123,10 @@ def build_remote_messages(jobs: list[dict]) -> list[str]:
 
 
 def format_remote_block(index: int, job: dict) -> str:
-    lines = [f"<b>{index}. {html.escape(job['title'])}</b>"]
+    header = f"<b>{index}. {html.escape(job['title'])}</b>"
+    if job.get("score"):
+        header += f"  ({job['score']}%)"
+    lines = [header]
     if job.get("company"):
         lines.append(f"🏢 {html.escape(job['company'])}")
     meta = " · ".join(
@@ -133,6 +136,8 @@ def format_remote_block(index: int, job: dict) -> str:
     )
     if meta:
         lines.append(f"🌐 {html.escape(meta)}")
+    if job.get("why_fits"):
+        lines.append(f"💡 {html.escape(job['why_fits'])}")
     lines.append(f"🔗 <a href=\"{html.escape(job['url'])}\">Elanı aç</a>")
     return "\n".join(lines)
 

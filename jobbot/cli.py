@@ -61,17 +61,42 @@ def run_remote_track(config: Config, args) -> None:
     from .remote_sources import fetch_global_remote
     from .telegram import build_remote_messages, send_remote
 
-    jobs = fetch_global_remote(geo_filter=config.remote_geo_filter)
+    use_llm = config.llm_judge_enabled and bool(config.gemini_api_key)
+
+    # Stage 1 - fetch + cheap keyword narrowing. When the LLM judge is on it is the
+    # real relevance/geo/scam arbiter, so we do NOT hard-drop on the keyword geo
+    # filter (avoid false negatives before the LLM sees them).
+    jobs = fetch_global_remote(
+        geo_filter=config.remote_geo_filter and not use_llm,
+        adzuna=(config.adzuna_app_id, config.adzuna_app_key) if config.adzuna_enabled else None,
+    )
     seen = SeenStore(config.remote_seen_path)
     fresh = [j for j in jobs if not seen.has(j["id"])]
-    print(f"Remote track: {len(jobs)} relevant remote jobs, {len(fresh)} new.")
+    print(f"Remote track: {len(jobs)} candidates, {len(fresh)} new. LLM judge: {use_llm}.")
 
-    # Route to a dedicated chat (group/channel) if configured, else the main chat.
     target_chat = config.remote_telegram_chat_id or config.telegram_chat_id
 
-    # Bound each run so the first run does not flood; the rest arrive over
-    # subsequent runs (seen store dedups).
-    batch = fresh[: config.remote_max_per_run]
+    # Stage 2 - LLM judge (batched) decides fit against the candidate profile.
+    if use_llm and fresh:
+        from .judge import evaluate_batch
+
+        to_judge = fresh[: config.llm_judge_max]
+        verdicts = evaluate_batch(to_judge, config)
+        scored = []
+        for j in to_judge:
+            v = verdicts.get(j["id"])
+            if not v:
+                continue  # LLM errored on this one -> leave unseen, retry next run
+            if v.get("decision") in ("yes", "maybe"):
+                j["why_fits"] = v.get("why_fits", "")
+                j["score"] = v.get("score")
+                scored.append(j)
+            elif not args.dry_run:
+                seen.add(j["id"])  # settled 'no' -> never spend the LLM on it again
+        scored.sort(key=lambda x: -(x.get("score") or 0))
+        batch = scored[: config.remote_max_per_run]
+    else:
+        batch = fresh[: config.remote_max_per_run]
 
     if args.dry_run:
         print("\n----- Remote preview -----")
@@ -84,7 +109,7 @@ def run_remote_track(config: Config, args) -> None:
         try:
             send_remote(config, batch, chat_id=target_chat)
             for j in batch:
-                seen.add(j["id"])
+                seen.add(j["id"])  # only sent jobs marked; un-sent yes/maybe retry next run
         except Exception as exc:  # noqa: BLE001
             print(f"Remote send failed, will retry next run: {exc}", file=sys.stderr)
 

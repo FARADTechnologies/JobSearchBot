@@ -29,6 +29,16 @@ class Config:
     remote_max_per_run: int
     remote_telegram_chat_id: str
     remote_geo_filter: bool
+    adzuna_app_id: str
+    adzuna_app_key: str
+    gemini_api_key: str
+    gemini_model: str
+    llm_judge_enabled: bool
+    llm_judge_max: int
+
+    @property
+    def adzuna_enabled(self) -> bool:
+        return bool(self.adzuna_app_id and self.adzuna_app_key)
 
     @property
     def telegram_enabled(self) -> bool:
@@ -69,4 +79,11 @@ def load_config() -> Config:
         remote_telegram_chat_id=os.getenv("REMOTE_TELEGRAM_CHAT_ID", "").strip(),
         remote_geo_filter=os.getenv("REMOTE_GEO_FILTER", "true").strip().lower()
         in {"1", "true", "yes", "y", "on"},
+        adzuna_app_id=os.getenv("ADZUNA_APP_ID", "").strip(),
+        adzuna_app_key=os.getenv("ADZUNA_APP_KEY", "").strip(),
+        gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-flash-latest").strip(),
+        llm_judge_enabled=os.getenv("LLM_JUDGE_ENABLED", "true").strip().lower()
+        in {"1", "true", "yes", "y", "on"},
+        llm_judge_max=int(os.getenv("LLM_JUDGE_MAX", "60")),
     )
