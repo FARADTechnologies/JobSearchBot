@@ -38,6 +38,48 @@ def main() -> None:
     # ---- Legacy single-user flow (env-configured user). Unchanged. ----
     run_legacy(config, jobs, session, args)
 
+    # ---- Global remote track (ADDITIVE). Isolated: a failure here can never
+    #      affect the flows above. ----
+    if config.remote_track_enabled:
+        try:
+            run_remote_track(config, args)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Remote track failed: {exc}", file=sys.stderr)
+
+
+# ------------------------------------------------------------ global remote track
+
+
+def run_remote_track(config: Config, args) -> None:
+    from .remote_sources import fetch_global_remote
+    from .telegram import build_remote_messages, send_remote
+
+    jobs = fetch_global_remote()
+    seen = SeenStore(config.remote_seen_path)
+    fresh = [j for j in jobs if not seen.has(j["id"])]
+    print(f"Remote track: {len(jobs)} relevant remote jobs, {len(fresh)} new.")
+
+    # Bound each run so the first run does not flood; the rest arrive over
+    # subsequent runs (seen store dedups).
+    batch = fresh[: config.remote_max_per_run]
+
+    if args.dry_run:
+        print("\n----- Remote preview -----")
+        for message in build_remote_messages(batch) if batch else ["(no new remote jobs)"]:
+            print(message)
+            print("-----")
+        return
+
+    if batch:
+        try:
+            send_remote(config, batch, chat_id=config.telegram_chat_id)
+            for j in batch:
+                seen.add(j["id"])
+        except Exception as exc:  # noqa: BLE001
+            print(f"Remote send failed, will retry next run: {exc}", file=sys.stderr)
+
+    seen.save()
+
 
 # ---------------------------------------------------------------- multi-user
 

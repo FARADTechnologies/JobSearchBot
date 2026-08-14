@@ -44,10 +44,10 @@ jobs:
 
       - name: Persist seen jobs
         run: |
-          if [ -n "$(git status --porcelain data/seen_jobs.json)" ]; then
+          if [ -n "$(git status --porcelain data/seen_jobs.json data/seen_remote.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add data/seen_jobs.json
+            git add data/seen_jobs.json data/seen_remote.json
             git commit -m "chore: update seen jobs [skip ci]"
             git push
           else
