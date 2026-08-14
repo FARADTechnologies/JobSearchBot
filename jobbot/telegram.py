@@ -142,12 +142,38 @@ def format_remote_block(index: int, job: dict) -> str:
     return "\n".join(lines)
 
 
-def send_remote(config: Config, jobs: list[dict], chat_id: str | int | None = None) -> None:
+def build_remote_digest(jobs: list[dict]) -> list[str]:
+    """Compact one-line-per-job digest (used when REMOTE_DIGEST=true)."""
+    lines = [f"🌍 <b>{len(jobs)} yeni remote iş</b>", ""]
+    for i, j in enumerate(jobs, 1):
+        score = f" ({j['score']}%)" if j.get("score") else ""
+        meta = " · ".join(p for p in [j.get("job_type"), j.get("location")] if p)
+        meta = f" — {html.escape(meta)}" if meta else ""
+        lines.append(
+            f"{i}. <a href=\"{html.escape(j['url'])}\">{html.escape(j['title'])}</a>"
+            f"{score} — {html.escape(j.get('company') or '')}{meta}"
+        )
+    messages: list[str] = []
+    current: list[str] = []
+    length = 0
+    for line in lines:
+        if length + len(line) + 1 > MAX_MESSAGE_CHARS and current:
+            messages.append("\n".join(current))
+            current, length = [], 0
+        current.append(line)
+        length += len(line) + 1
+    if current:
+        messages.append("\n".join(current))
+    return messages
+
+
+def send_remote(config: Config, jobs: list[dict], chat_id: str | int | None = None, digest: bool = False) -> None:
     if not config.telegram_enabled:
         raise RuntimeError("Telegram is not configured.")
     if not jobs:
         return
-    for text in build_remote_messages(jobs):
+    render = build_remote_digest if digest else build_remote_messages
+    for text in render(jobs):
         _send(config, text, chat_id=chat_id)
 
 
