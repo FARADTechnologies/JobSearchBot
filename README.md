@@ -48,3 +48,7 @@ train on the data (Groq/Cohere). Details: [ARCHITECTURE.md](ARCHITECTURE.md).
 | `SUPABASE_SECRET_KEY` | For Phase 1 | service_role secret key |
 | `GROQ_API_KEY` | optional | CV profile extraction (LLM) |
 | `OPENAI_API_KEY` | optional | Legacy AI classification |
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
