@@ -65,13 +65,13 @@ def score_job(profile: dict, job: Job) -> Classification:
 
     if score >= 6:
         label, confidence = "HIGH_MATCH", min(70 + score, 90)
-        reason = "Profil terminləri ilə güclü üst-üstə düşmə."
+        reason = "Strong overlap with the profile terms."
     elif score >= 3:
         label, confidence = "MAYBE_MATCH", min(55 + score, 69)
-        reason = "Profillə qismən uyğunluq."
+        reason = "Partial match with the profile."
     else:
         label, confidence = "NO_MATCH", 80
-        reason = "Profillə kifayət qədər uyğunluq tapılmadı."
+        reason = "Not enough overlap with the profile."
 
     return Classification(
         label=label,

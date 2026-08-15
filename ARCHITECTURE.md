@@ -1,100 +1,100 @@
-# ARCHITECTURE.md — Eşleştirme Motoru Mimarisi (kilitlendi: 2026-07-14)
+# ARCHITECTURE.md — Matching Engine Architecture (locked: 2026-07-14)
 
-> İki bağımsız araştırma (Claude Code + Claude Research) aynı mimaride birleşti.
-> Bu doküman kararları sabitler. Değişiklik ancak golden-set ölçümüyle yapılır.
-> Vizyon için: [VISION.md](VISION.md)
+> Two independent research passes (Claude Code + Claude Research) converged on the same
+> architecture. This document fixes the decisions. Changes are made only with golden-set
+> measurement. For the vision: [VISION.md](VISION.md)
 
-## Temel ilkeler
+## Core principles
 
-1. **Bir kez analiz et, sakla.** Her ilan ve her CV tam olarak BİR kez LLM'den geçer
-   (yapılandırılmış JSON çıkarım + embedding), sonucu DB'de durur. İlan analizleri
-   TÜM kullanıcılar için ortaktır — ekonomiyi kurtaran şey budur.
-2. **Kademeli pipeline.** Ucuz ve geniş başla, pahalı ve dar bitir. LLM asla
-   2700 ilana dokunmaz; sadece kısa listeye dokunur.
-3. **Ölçmeden değiştirme.** Her pipeline değişikliği golden set'te puanlanır.
-   "İyi çalışıyor hissi" veri değildir.
+1. **Analyze once, store it.** Every listing and every CV passes through the LLM exactly
+   ONCE (structured JSON extraction + embedding), and the result is stored in the DB.
+   Listing analyses are shared across ALL users — this is what saves the economics.
+2. **Staged pipeline.** Start cheap and wide, finish expensive and narrow. The LLM never
+   touches 2700 listings; it only touches the shortlist.
+3. **Don't change without measuring.** Every pipeline change is scored on the golden set.
+   "It feels like it works" is not data.
 
 ## Pipeline
 
 ```
-[Aşama 0 — Alım (her belge 1 kez)]
-  İlan → LLM çıkarım (JSON: başlık, beceriler, deneyim, dil, yer, maaş; İngilizce)
-       → BGE-M3 embedding → Supabase pgvector (jobs tablosu)
-  CV   → parse (PDF; görsel PDF için OCR fallback) → LLM çıkarım (JSON, İngilizce)
-       → BGE-M3 embedding → Supabase pgvector (cvs tablosu)
-       → kullanıcıya "profilini kontrol et" adımı (parsing hatası ~%15-25)
+[Stage 0 — Intake (each document once)]
+  Listing → LLM extraction (JSON: title, skills, experience, language, location, salary; English)
+          → BGE-M3 embedding → Supabase pgvector (jobs table)
+  CV      → parse (PDF; OCR fallback for image-based PDFs) → LLM extraction (JSON, English)
+          → BGE-M3 embedding → Supabase pgvector (cvs table)
+          → a "check your profile" step for the user (parsing error ~15-25%)
 
-[Aşama 1 — Getirme (ucuz, tüm ilanlar üzerinde)]
-  SQL hard filtre: yer, dil, min deneyim, maaş (embedding'den ÖNCE)
-  → hibrit arama: vektör (cosine) + BM25, RRF fusion → top-50
-  (BM25 katkısını golden set'te ölç — bazen zarar verir)
+[Stage 1 — Retrieval (cheap, over all listings)]
+  SQL hard filter: location, language, min experience, salary (BEFORE embedding)
+  → hybrid search: vector (cosine) + BM25, RRF fusion → top-50
+  (measure BM25's contribution on the golden set — it sometimes hurts)
 
-[Aşama 2 — Yeniden sıralama (orta maliyet, top-50 üzerinde)]
-  Cohere Rerank (bedava tier) veya BGE-reranker-v2-m3 → top-10
+[Stage 2 — Reranking (medium cost, over top-50)]
+  Cohere Rerank (free tier) or BGE-reranker-v2-m3 → top-10
 
-[Aşama 3 — LLM-hakim (pahalı, top-10 üzerinde)]
-  Gerçek uygunluk kararı + "neden uygun" açıklaması + kalite eşiği
-  Azerice/Rusça metni doğrudan LLM'e ver (embedding'den iyi anlar)
+[Stage 3 — LLM judge (expensive, over top-10)]
+  Real fit decision + a "why it fits" explanation + a quality threshold
+  Feed Azerbaijani/Russian text directly to the LLM (it understands it better than embeddings)
 
-[Aşama 4 — Bildirim]
-  Sadece eşiği geçenler; batch; her eşleşmede açıklama + son başvuru tarihi
+[Stage 4 — Notification]
+  Only those above the threshold; batched; each match with an explanation + application deadline
 ```
 
-## Teknoloji kararları
+## Technology decisions
 
-| Katman | Karar | Neden |
+| Layer | Decision | Why |
 |---|---|---|
-| DB + vektör | **Supabase Postgres + pgvector** | Bedava, kartsız; metadata+vektör tek yerde; <10M vektörde standart. Günlük cron 7-gün pause'u da engeller |
-| Embedding | **BGE-M3** (Cloudflare Workers AI bedava / self-host) | 100+ dil, düşük-kaynak dillerde stabil, dense+sparse, cross-lingual |
-| Rerank | **Cohere Rerank bedava tier** (1000/ay) → taşarsa BGE-reranker self-host | Rerank = en yüksek etkili tek kalite artışı |
-| LLM (ilanlar) | **Gemini Flash bedava** | İlan kamuya açık veri — eğitimde kullanılması sorun değil; kota cömert |
-| LLM (CV'ler) | **Groq (Llama 3.3 70B) / Cohere / Cerebras** | 🔴 Bunlar veriyi eğitimde KULLANMAZ. CV kişisel veridir — bedava Gemini'ye ASLA gönderilmez (Google bedava tier'da prompt'larla eğitim yapıyor) |
-| Çalıştırma | GitHub Actions cron (batch) + Supabase Edge Functions (webhook) | Bedava; bildirim işi real-time gerektirmez |
-| Failover | Çoklu sağlayıcı (OpenRouter yedek) | Bedava kotalar habersiz değişiyor (Gemini Aralık 2025'te %50-80 kesti) |
+| DB + vector | **Supabase Postgres + pgvector** | Free, no card; metadata+vector in one place; standard under 10M vectors. A daily cron also prevents the 7-day pause |
+| Embedding | **BGE-M3** (Cloudflare Workers AI free / self-host) | 100+ languages, stable on low-resource languages, dense+sparse, cross-lingual |
+| Rerank | **Cohere Rerank free tier** (1000/month) → self-host BGE-reranker if exceeded | Rerank = the single highest-impact quality gain |
+| LLM (listings) | **Gemini Flash free** | Listings are public data — using them for training is not a concern; the quota is generous |
+| LLM (CVs) | **Groq (Llama 3.3 70B) / Cohere / Cerebras** | 🔴 These do NOT train on the data. A CV is personal data — it is NEVER sent to free Gemini (Google trains on prompts in the free tier) |
+| Runtime | GitHub Actions cron (batch) + Supabase Edge Functions (webhook) | Free; the notification job does not need real time |
+| Failover | Multiple providers (OpenRouter as backup) | Free quotas change without notice (Gemini cut 50-80% in December 2025) |
 
-## Dil stratejisi (Azerice = düşük-kaynak riski)
+## Language strategy (Azerbaijani = low-resource risk)
 
-1. **Önce:** BGE-M3 multilingual, olduğu gibi (cross-lingual: AZ CV ↔ EN ilan çalışır)
-2. JSON çıkarımları zaten İngilizce üretilir (ek maliyet yok, LLM zaten okuyor)
-3. Golden set'te **nDCG@10 < 0.7** çıkarsa → translate-then-embed pivot ekle
-4. LLM-hakim aşaması AZ/RU'yu doğrudan okur — son savunma hattı
-5. Genel benchmark'lara güvenme: Azerice MTEB'de yok denecek kadar az; kendi setinde ölç
+1. **First:** BGE-M3 multilingual, as-is (cross-lingual: AZ CV ↔ EN listing works)
+2. JSON extractions are already produced in English (no extra cost, the LLM already reads it)
+3. If the golden set shows **nDCG@10 < 0.7** → add a translate-then-embed pivot
+4. The LLM judge stage reads AZ/RU directly — the last line of defense
+5. Don't trust general benchmarks: Azerbaijani is barely present in MTEB; measure on your own set
 
-## Ölçüm (bunsuz her şey tahmin)
+## Measurement (without it, everything is a guess)
 
-- **Golden set:** 50-100 elle etiketli (CV, ilan, uygun/uygun-değil) çifti — ilk iş
-- **Offline:** nDCG@10, recall@k — her pipeline değişikliğinde
-- **LLM-as-judge:** insan etiketlerine karşı doğrula (hedef %75-90 uyum); önce ikili
-  geç/kal, sonra skor; açıklama zorunlu (uyumu artırır)
-- **Online (asıl gerçek):** bildirim CTR, kaydetme/başvuru oranı, 3-7 gün retention
-- **Feedback tablosu 1. günden:** tıkladı/kaydetti/başvurdu/reddetti → gelecekteki
-  fine-tuning'in etiketli verisi = moat
+- **Golden set:** 50-100 hand-labeled (CV, listing, fit/no-fit) pairs — the first task
+- **Offline:** nDCG@10, recall@k — on every pipeline change
+- **LLM-as-judge:** validate against human labels (target 75-90% agreement); binary
+  pass/fail first, then a score; explanation required (improves agreement)
+- **Online (the real truth):** notification CTR, save/apply rate, 3-7 day retention
+- **Feedback table from day 1:** clicked/saved/applied/dismissed → labeled data for future
+  fine-tuning = the moat
 
-## Yapmayacaklarımız (popüler ama bizim için yanlış)
+## What we will NOT do (popular but wrong for us)
 
-- ❌ Tek başına vektör arama (reranker'sız) — hassasiyet zayıf
-- ❌ Her eşleştirmede her şeyi LLM'e okutmak — pahalı, ölçeklenmez
-- ❌ Graph DB / knowledge graph ana motor — gereksiz karmaşıklık
-- ❌ Pinecone/Qdrant ile başlamak — pgvector yeter (100K+ ilanda tekrar bak)
-- ❌ Başta fine-tuning / kendi model — etiketli veri yok; flywheel sonrası (Faz 2+)
-- ❌ CV'yi bedava Gemini'ye göndermek — gizlilik ihlali
-- ❌ Real-time eşleştirme — batch yeter ve çok daha ucuz
+- ❌ Vector search alone (no reranker) — weak precision
+- ❌ Feeding everything to the LLM on every match — expensive, doesn't scale
+- ❌ Graph DB / knowledge graph as the main engine — needless complexity
+- ❌ Starting with Pinecone/Qdrant — pgvector is enough (revisit at 100K+ listings)
+- ❌ Fine-tuning / our own model up front — no labeled data; after the flywheel (Phase 2+)
+- ❌ Sending a CV to free Gemini — a privacy violation
+- ❌ Real-time matching — batch is enough and much cheaper
 
-## Riskler ve önlemler
+## Risks and mitigations
 
-| Risk | Önlem |
+| Risk | Mitigation |
 |---|---|
-| Scraping hukuki/ToS (hiQ $500K, Proxycurl kapandı) | Yavaş tarama, robots.txt, login arkasına geçme; uzun vadede site sahipleriyle ortaklık |
-| Bildirim yorgunluğu (push kapatanların %52'si uygulamayı bırakıyor) | Kalite eşiği + batch + açıklama; az ama isabetli |
-| CV parsing hatası (~%15-25 beceri hatası) | OCR fallback + kullanıcı onay adımı + parsing hata takibi |
-| Çok-kaynak dublikasyon | Fingerprint/embedding ile dedup |
-| Bedava tier kotaları değişken | Çoklu sağlayıcı failover; tek modele bağlanma |
-| Azerbaycan KVK mevzuatı (sınır ötesi veri) | Opt-in şart; hukuki danışma gerekli (Faz 3 öncesi) |
-| Rakip: "Expertini" tarzı semantik platformlar | Rekabet analizi yapılacak (ödev) |
+| Scraping legal/ToS (hiQ $500K, Proxycurl shut down) | Slow scraping, robots.txt, don't go behind login; long-term partnerships with site owners |
+| Notification fatigue (52% of people who turn off push abandon the app) | Quality threshold + batch + explanation; few but on-point |
+| CV parsing error (~15-25% skill error) | OCR fallback + a user confirmation step + parsing-error tracking |
+| Multi-source duplication | Dedup by fingerprint/embedding |
+| Free-tier quotas are variable | Multi-provider failover; don't depend on a single model |
+| Azerbaijan data-protection law (cross-border data) | Opt-in mandatory; legal advice required (before Phase 3) |
+| Competitor: semantic platforms such as "Expertini" | Competitive analysis to be done (task) |
 
-## Geçiş eşikleri
+## Transition thresholds
 
-- nDCG@10 < 0.7 → çeviri pivotu ekle
-- İlan sayısı 100K+ → Qdrant değerlendir
-- Bedava kota taşarsa → Gemini Flash paralı ($0.15/1M — hâlâ ucuz)
-- Feedback verisi biriktiğinde → ConFit-tarzı fine-tuning (Faz 2+)
+- nDCG@10 < 0.7 → add the translation pivot
+- Listing count 100K+ → evaluate Qdrant
+- If the free quota is exceeded → paid Gemini Flash ($0.15/1M — still cheap)
+- When feedback data accumulates → ConFit-style fine-tuning (Phase 2+)

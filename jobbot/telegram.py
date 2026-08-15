@@ -43,9 +43,9 @@ def build_batch_messages(matches: list[tuple[Job, Classification]]) -> list[str]
     total = len(chunks)
     messages: list[str] = []
     for part, chunk in enumerate(chunks, 1):
-        header = f"🔔 <b>{len(matches)} yeni uyğun elan tapıldı</b>"
+        header = f"🔔 <b>{len(matches)} new matching jobs found</b>"
         if total > 1:
-            header += f" (bölüm {part}/{total})"
+            header += f" (part {part}/{total})"
         messages.append("\n\n".join([header, *chunk]))
     return messages
 
@@ -53,15 +53,15 @@ def build_batch_messages(matches: list[tuple[Job, Classification]]) -> list[str]
 def format_job_block(index: int, job: Job, classification: Classification) -> str:
     lines = [
         f"<b>{index}. {html.escape(job.title)}</b>",
-        f"🏢 {html.escape(job.company or 'Qeyd edilməyib')}",
+        f"🏢 {html.escape(job.company or 'Not specified')}",
         f"✅ {classification.confidence}% {classification.label}",
     ]
     deadline = format_date(job.deadline)
     if deadline:
-        lines.append(f"⏳ Son müraciət: {deadline}")
+        lines.append(f"⏳ Deadline: {deadline}")
     if classification.matched_concepts:
         lines.append(f"🏷 {html.escape(', '.join(classification.matched_concepts))}")
-    lines.append(f"🔗 <a href=\"{html.escape(job.url)}\">Elanı aç</a>")
+    lines.append(f"🔗 <a href=\"{html.escape(job.url)}\">Open listing</a>")
     return "\n".join(lines)
 
 
@@ -115,9 +115,9 @@ def build_remote_messages(jobs: list[dict]) -> list[str]:
     total = len(chunks)
     messages: list[str] = []
     for part, chunk in enumerate(chunks, 1):
-        header = f"🌍 <b>{len(jobs)} yeni remote iş</b>"
+        header = f"🌍 <b>{len(jobs)} new remote jobs</b>"
         if total > 1:
-            header += f" (bölüm {part}/{total})"
+            header += f" (part {part}/{total})"
         messages.append("\n\n".join([header, *chunk]))
     return messages
 
@@ -138,13 +138,13 @@ def format_remote_block(index: int, job: dict) -> str:
         lines.append(f"🌐 {html.escape(meta)}")
     if job.get("why_fits"):
         lines.append(f"💡 {html.escape(job['why_fits'])}")
-    lines.append(f"🔗 <a href=\"{html.escape(job['url'])}\">Elanı aç</a>")
+    lines.append(f"🔗 <a href=\"{html.escape(job['url'])}\">Open listing</a>")
     return "\n".join(lines)
 
 
 def build_remote_digest(jobs: list[dict]) -> list[str]:
     """Compact one-line-per-job digest (used when REMOTE_DIGEST=true)."""
-    lines = [f"🌍 <b>{len(jobs)} yeni remote iş</b>", ""]
+    lines = [f"🌍 <b>{len(jobs)} new remote jobs</b>", ""]
     for i, j in enumerate(jobs, 1):
         score = f" ({j['score']}%)" if j.get("score") else ""
         meta = " · ".join(p for p in [j.get("job_type"), j.get("location")] if p)

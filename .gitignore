@@ -5,3 +5,4 @@ __pycache__/
 data/*
 !data/seen_jobs.json
 !data/seen_remote.json
+.tr_backup/

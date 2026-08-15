@@ -8,35 +8,34 @@ from .db import SupabaseDB
 from .telegram import get_file_bytes, get_updates, send_text
 
 WELCOME = (
-    "👋 <b>Salam! Mən JobSearchBot-am.</b>\n\n"
-    "Azərbaycandakı aktiv iş elanlarını 7/24 izləyirəm və profilinə uyğun olanları "
-    "sənə göndərirəm.\n\n"
-    "Başlamaq üçün <b>CV-ni PDF şəklində</b> bura göndər. 📄"
+    "👋 <b>Hi! I'm JobSearchBot.</b>\n\n"
+    "I watch active job listings 24/7 and send you the ones matching your profile.\n\n"
+    "To get started, send your <b>CV as a PDF</b> here. 📄"
 )
 
 CV_RECEIVED = (
-    "✅ <b>CV qəbul edildi!</b>\n\n"
-    "Profilin hazırlandı. Bundan sonra sənə uyğun yeni elanlar tapılan kimi "
-    "bildiriş göndərəcəyəm.\n\n"
-    "İstəyə bağlı: CV-ni anonim namizəd hovuzumuza əlavə etmək istəyirsənsə "
-    "/hovuz_aktiv yaz — şirkətlər uyğun namizəd axtaranda səni tapa bilər. "
-    "(İstənilən vaxt /hovuz_deaktiv ilə çıxara bilərsən.)\n\n"
-    "Komandalar: /status · /pause · /resume"
+    "✅ <b>CV received!</b>\n\n"
+    "Your profile is ready. From now on I'll notify you as soon as new matching "
+    "listings are found.\n\n"
+    "Optional: if you want to add your CV to our anonymous candidate pool, type "
+    "/pool_on — companies can find you when searching for suitable candidates. "
+    "(You can remove it any time with /pool_off.)\n\n"
+    "Commands: /status · /pause · /resume"
 )
 
 CV_UNREADABLE = (
-    "⚠️ CV oxuna bilmədi. PDF şəkil-əsaslıdırsa (məs. Canva dizaynı), mətn "
-    "çıxarmaq mümkün olmur. Zəhmət olmasa mətn-əsaslı PDF göndər."
+    "⚠️ Could not read the CV. If the PDF is image-based (e.g. a Canva design), text "
+    "cannot be extracted. Please send a text-based PDF."
 )
 
 HELP = (
-    "📄 CV-ni PDF şəklində göndər — profilini hazırlayım.\n"
-    "Komandalar:\n"
-    "/status — vəziyyətin\n"
-    "/pause — bildirişləri dayandır\n"
-    "/resume — bildirişləri davam etdir\n"
-    "/hovuz_aktiv — CV-ni namizəd hovuzuna əlavə et\n"
-    "/hovuz_deaktiv — hovuzdan çıxar"
+    "📄 Send your CV as a PDF — I'll build your profile.\n"
+    "Commands:\n"
+    "/status — your status\n"
+    "/pause — stop notifications\n"
+    "/resume — resume notifications\n"
+    "/pool_on — add your CV to the candidate pool\n"
+    "/pool_off — remove it from the pool"
 )
 
 
@@ -84,24 +83,24 @@ def handle_update(config: Config, db: SupabaseDB, update: dict) -> None:
     command = text.lower()
     if command.startswith("/status"):
         cv = db.get_active_cv(user["id"])
-        state = {"active": "aktiv ✅", "paused": "dayandırılıb ⏸", "awaiting_cv": "CV gözlənilir 📄"}.get(
+        state = {"active": "active ✅", "paused": "paused ⏸", "awaiting_cv": "awaiting CV 📄"}.get(
             user["state"], user["state"]
         )
-        pool = "bəli" if user.get("cv_pool_opt_in") else "xeyr"
-        cv_line = f"CV: {cv['file_name']}" if cv else "CV: yüklənməyib"
-        send_text(config, chat_id, f"ℹ️ Vəziyyət: {state}\n{cv_line}\nHovuzda: {pool}")
+        pool = "yes" if user.get("cv_pool_opt_in") else "no"
+        cv_line = f"CV: {cv['file_name']}" if cv else "CV: not uploaded"
+        send_text(config, chat_id, f"ℹ️ Status: {state}\n{cv_line}\nIn pool: {pool}")
     elif command.startswith("/pause"):
         db.update_user(user["id"], {"state": "paused"})
-        send_text(config, chat_id, "⏸ Bildirişlər dayandırıldı. /resume ilə davam etdirə bilərsən.")
+        send_text(config, chat_id, "⏸ Notifications paused. Resume any time with /resume.")
     elif command.startswith("/resume"):
         db.update_user(user["id"], {"state": "active" if db.get_active_cv(user["id"]) else "awaiting_cv"})
-        send_text(config, chat_id, "▶️ Bildirişlər aktivdir.")
-    elif command.startswith("/hovuz_aktiv"):
+        send_text(config, chat_id, "▶️ Notifications are active.")
+    elif command.startswith("/pool_on"):
         db.update_user(user["id"], {"cv_pool_opt_in": True})
-        send_text(config, chat_id, "✅ CV-n namizəd hovuzuna əlavə edildi. /hovuz_deaktiv ilə çıxara bilərsən.")
-    elif command.startswith("/hovuz_deaktiv"):
+        send_text(config, chat_id, "✅ Your CV was added to the candidate pool. Remove it with /pool_off.")
+    elif command.startswith("/pool_off"):
         db.update_user(user["id"], {"cv_pool_opt_in": False})
-        send_text(config, chat_id, "☑️ CV-n hovuzdan çıxarıldı.")
+        send_text(config, chat_id, "☑️ Your CV was removed from the pool.")
     elif text:
         send_text(config, chat_id, HELP)
 
@@ -109,7 +108,7 @@ def handle_update(config: Config, db: SupabaseDB, update: dict) -> None:
 def handle_cv_upload(config: Config, db: SupabaseDB, user: dict, chat_id: int, document: dict) -> None:
     name = document.get("file_name") or "cv.pdf"
     if not name.lower().endswith(".pdf"):
-        send_text(config, chat_id, "⚠️ Zəhmət olmasa CV-ni <b>PDF</b> formatında göndər.")
+        send_text(config, chat_id, "⚠️ Please send your CV in <b>PDF</b> format.")
         return
 
     try:
