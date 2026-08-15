@@ -20,7 +20,7 @@ import requests
 from .config import Config
 
 # Who the user is + what they want. This is the "the LLM knows me" part.
-# (Later this can be generated per-user from their CV; for now it is Hesen's.)
+# (Later this can be generated per-user from their CV; for now it is the founder's.)
 PROFILE_SPEC = """Candidate: Robotics & Mechatronics engineer based in AZERBAIJAN.
 Skills: Python, C/C++, embedded (Raspberry Pi, Jetson, sensors, motor drivers),
 computer vision & ML (YOLO, OpenCV, segmentation, tracking), SOLIDWORKS/3D printing/CNC,

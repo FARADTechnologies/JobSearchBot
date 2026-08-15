@@ -1,91 +1,98 @@
-# JobSearchBot — Vizyon ve Startup Fikri
+# JobSearchBot — Vision and Startup Idea
 
-> Bu dosya projenin **amacını, tüm özelliklerini ve fazlarını** saklar. Unutmamak için.
-> Son güncelleme: 2026-07-14
+> This document holds the project's **purpose, full feature set, and phases**, so nothing
+> is forgotten.
+> Last updated: 2026-07-14
 
 ---
 
-## 1. Amaç
+## 1. Purpose
 
-İş arayan kişinin yerine **7/24 tarayan, anlayan, seçen ve (istenirse) başvuran bir AI ajanı**.
+An **AI agent that, on the user's behalf, scans 24/7, understands, selects, and (if
+allowed) applies**.
 
-**Problem:** İnsanlar iş arıyor ama 7/24 her siteyi kontrol edemiyor. İlan çok, bazıları
-hepsini göremiyor, bazıları üşeniyor ve fırsatları kaçırıyor.
+**Problem:** People are job hunting but cannot check every site 24/7. There are many
+listings; some people can't see them all, others can't be bothered, and they miss
+opportunities.
 
-**Çözüm:** Kullanıcı kendi işini yaparken bot onun için Azerbaycan'daki tüm aktif ilanları
-izler, profiline uyanları bulur, bildirir ve izin verirse başvurur.
+**Solution:** While the user goes about their own work, the bot watches all active
+listings in Azerbaijan for them, finds the ones matching their profile, notifies them,
+and — if permitted — applies.
 
-**Fırsat:** Azerbaycan'da bu işi yapan yerel bir rakip yok.
+**Opportunity:** There is no local competitor doing this in Azerbaijan.
 
-## 2. Kime hizmet ediyor
+## 2. Who it serves
 
-- **İş arayanlar (Azerbaycan)** → kullanıcı kazanım motoru (ucuz/bedava)
-- **İşverenler** → asıl gelir kaynağı (Faz 3)
+- **Job seekers (Azerbaijan)** → the user-acquisition engine (cheap/free)
+- **Employers** → the real revenue source (Phase 3)
 
-## 3. Ürün ve özellikler (tam liste)
+## 3. Product and features (full list)
 
-### Faz 1 — Çok kullanıcılı akıllı bildirim (ücretsiz)
-- Kullanıcı programa girer, **CV yükler**
-- **Mail ilişkilendirme**
-- **Manuel filtre**: hangi tür iş, çalışma saati, maaş vb.
-- **veya** uygulamadaki **AI ile chat'te konuşarak** filtreyi kurdurma
-- **veya tam otonom mod**: AI CV'yi okuyup neyin uygun olduğuna kendisi karar verir
-- Azerbaycan'daki **tüm aktif ilanlar** taranır (çok kaynak: jobsearch.az + benzeri siteler)
-- **Bildirim sıklığını kullanıcı seçer** (ör. 2-3 saatte bir)
-- Her ilanda **son başvuru tarihi**
+### Phase 1 — Multi-user smart notifications (free)
+- The user signs in and **uploads a CV**
+- **Email association**
+- **Manual filters**: job type, working hours, salary, etc.
+- **or** setting up filters by **talking to the AI in chat** inside the app
+- **or fully autonomous mode**: the AI reads the CV and decides for itself what fits
+- **All active listings** in Azerbaijan are scanned (multi-source: jobsearch.az + similar sites)
+- **The user chooses the notification frequency** (e.g., every 2-3 hours)
+- Every listing includes the **application deadline**
 
-### Faz 2 — Otomatik başvuru
-- **Güven merdiveni**: sadece bildirim → tek-dokunuş onay → tam otonom
-- Uygun her işe **otomatik mail**
-- İşe **özel motivasyon mektubu** (AI yazar)
-- Sadece CV isteniyorsa CV, yazı isteniyorsa yazı gönderir
-- Sitede **form doldurulması gerekiyorsa doldurur**
-- Mektup kaynağı seçeneği: kullanıcı önceden kendi yazar / **local LLM** / bizim AI / dış API
-  (kullanıcı onaylar)
-- Başvurular **kullanıcının kendi hesabından** gider (tespit edilebilir bir kalıp yok)
+### Phase 2 — Automatic applications
+- **Trust ladder**: notify only → one-tap confirmation → fully autonomous
+- **Automatic email** to every suitable job
+- A **job-specific cover/motivation letter** (written by the AI)
+- Sends only the CV if only a CV is requested, or written text if text is requested
+- **Fills in web forms** if the site requires it
+- Letter-source option: the user writes their own in advance / a **local LLM** / our AI /
+  an external API (the user approves)
+- Applications go out from the **user's own account** (no detectable pattern)
 
-### Faz 3 — CV Havuzu (CV House)
-- Kullanıcı **kendi isteği ve onayıyla** CV'sini havuza koyar (bir ilan/reklam gibi)
-- Şirketler uygun aday ararken havuza bakar
-- **AI en uygun adayları seçer/sıralar**
-- **İşverenler öder** → asıl gelir
+### Phase 3 — CV Pool (CV House)
+- The user places their CV into the pool **of their own will and consent** (like an ad)
+- Companies look at the pool when searching for suitable candidates
+- The **AI selects/ranks the most suitable candidates**
+- **Employers pay** → the real revenue
 
-## 4. İş modeli
+## 4. Business model
 
-| Taraf | Fiyat | Rolü |
+| Side | Price | Role |
 |---|---|---|
-| İş arayan | ucuz/bedava (ör. 5 AZN/ay) | büyüme motoru |
-| İşveren | asıl ücret (aday erişimi / abonelik) | **gelir** |
+| Job seeker | cheap/free (e.g., 5 AZN/month) | growth engine |
+| Employer | the real fee (candidate access / subscription) | **revenue** |
 
-Bu aslında Indeed/LinkedIn modeli: **iş arayana bedava, parayı işveren öder.**
+This is essentially the Indeed/LinkedIn model: **free for job seekers, employers pay.**
 
-## 5. Ölçülecek 2 metrik (gerisi gürültü)
+## 5. The 2 metrics to measure (everything else is noise)
 
-1. **Faz 1 — geri dönüş:** kullanıcı 3-7 gün sonra hâlâ kullanıyor mu?
-2. **Faz 2 — cevap oranı:** oto-başvuru gerçekten mülakat/cevap getiriyor mu?
+1. **Phase 1 — retention:** is the user still using it after 3-7 days?
+2. **Phase 2 — response rate:** does auto-apply actually produce interviews/responses?
 
-## 6. Riskler (unutulmasın)
+## 6. Risks (don't forget)
 
-- **Başarı = churn.** Kullanıcı 1 ayda iş bulup gider → ömür boyu değeri ≈ 1 ay.
-  Büyüme **sadece** sürekli yeni kullanıcıyla olur → viral/ağızdan ağıza tasarla.
-- **İki taraflı pazar (Faz 3):** boş havuza işveren para vermez → önce iş arayan tarafını kazan.
-- **CV = kişisel veri:** opt-in şart; sızıntı = güven ve hukuk felaketi.
-- **LLM maliyeti** birim ekonomiyi patlatabilir → kullanıcının kendi anahtarı / local LLM.
-- **AI-native tek başına moat değil.** Gerçek moat: CV havuzu + işe-alım sonuçlarından öğrenen
-  **veri döngüsü**.
-- **Platform/ToS riski:** siteler engelleyebilir → çok kaynak bu riski azaltır.
+- **Success = churn.** A user finds a job in a month and leaves → lifetime value ≈ 1 month.
+  Growth happens **only** through a constant stream of new users → design for virality/word of mouth.
+- **Two-sided market (Phase 3):** employers won't pay for an empty pool → win the job-seeker
+  side first.
+- **CV = personal data:** opt-in is mandatory; a leak = a trust and legal disaster.
+- **LLM cost** can blow up the unit economics → the user's own key / a local LLM.
+- **AI-native alone is not a moat.** The real moat: the CV pool + a **data flywheel** that
+  learns from hiring outcomes.
+- **Platform/ToS risk:** sites may block us → multiple sources reduce this risk.
 
-## 7. Konumlanma: AI-native
+## 7. Positioning: AI-native
 
-AI çıkarsa ürün çöker (CV'yi anlama, ilanları kavrama, mektup yazma, otonom başvuru).
-Rakipler **kelime veritabanı**, biz **ajanız**. Mevcut kod hâlâ kural-tabanlı (regex);
-AI-native çekirdeğe geçiş, gerçek kullanıcı geldikten sonra yapılacak.
+Remove the AI and the product collapses (understanding CVs, comprehending listings, writing
+letters, autonomous applications). Competitors are a **keyword database**; we are an **agent**.
+The current code is still rule-based (regex); the move to the AI-native core happens after
+real users arrive.
 
-## 8. Bugünkü durum
+## 8. Current state
 
-Çalışan **tek kullanıcılık** Telegram botu:
-- GitHub Actions'ta günde 5 kez (Bakü 09/12/15/18/21), ücretsiz, kimsenin bilgisayarında değil
-- jobsearch.az'daki **~2700 ilanın tamamını** tarıyor (API + sayfalama + retry)
-- CV profiline göre eşleştirip Telegram'a **tek toplu mesaj** atıyor (son başvuru tarihleriyle)
+A working **single-user** Telegram bot:
+- Runs 5 times a day on GitHub Actions (Baku 09/12/15/18/21), free, on nobody's computer
+- Scans **all ~2700 listings** on jobsearch.az (API + pagination + retry)
+- Matches against the CV profile and sends a **single batched message** to Telegram (with
+  application deadlines)
 
-**Sıradaki adım:** Faz 1 — botu çok kullanıcılı hale getirmek.
+**Next step:** Phase 1 — make the bot multi-user.

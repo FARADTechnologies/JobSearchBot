@@ -241,7 +241,7 @@ def heuristic_classify(job: Job) -> Classification:
         return Classification(
             label="HIGH_MATCH",
             confidence=88,
-            reason="Texnologiya/robotika/kodlama sahəsində müəllimlik/təlim rolu.",
+            reason="A teaching/training role in technology/robotics/coding.",
             matched_concepts=shown,
         )
 
@@ -250,7 +250,7 @@ def heuristic_classify(job: Job) -> Classification:
         return Classification(
             label="NO_MATCH",
             confidence=78,
-            reason="Tehsil/telim var, amma texnologiya/robotika/kodlama sahesi deyil.",
+            reason="Education/training present, but not a technology/robotics/coding field.",
             matched_concepts=shown,
         )
 
@@ -260,7 +260,7 @@ def heuristic_classify(job: Job) -> Classification:
         return Classification(
             label="MAYBE_MATCH",
             confidence=68,
-            reason="Robotika/mexatronika/embedded/avtomatlaşdırma profilinə uyğun mühəndislik rolu.",
+            reason="An engineering role matching the robotics/mechatronics/embedded/automation profile.",
             matched_concepts=shown,
         )
 
@@ -269,7 +269,7 @@ def heuristic_classify(job: Job) -> Classification:
         return Classification(
             label="NO_MATCH",
             confidence=88,
-            reason="Proqram tərtibatı / kibertəhlükəsizlik / IT-dəstək kimi profilə uyğun olmayan rol.",
+            reason="A role that does not fit the profile, such as software development / cybersecurity / IT support.",
             matched_concepts=sorted(negatives),
         )
 
@@ -278,14 +278,14 @@ def heuristic_classify(job: Job) -> Classification:
         return Classification(
             label="MAYBE_MATCH",
             confidence=60,
-            reason="Kodlama/data/süni intellekt sahəsində rol; təlim bağlantısı net deyil.",
+            reason="A role in coding/data/AI; the teaching connection is unclear.",
             matched_concepts=shown,
         )
 
     return Classification(
         label="NO_MATCH",
         confidence=82,
-        reason="Profil (robotika/STEAM/kodlama/texnologiya təlimi) ilə uyğun siqnal tapılmadı.",
+        reason="No signal matching the profile (robotics/STEAM/coding/technology teaching) was found.",
         matched_concepts=[],
     )
 
